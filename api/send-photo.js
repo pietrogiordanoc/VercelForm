@@ -1,6 +1,8 @@
 const fs = require('fs');
-const { IncomingForm } = require('formidable'); // <-- v2
-const nodemailer = require('nodemailer');
+const { IncomingForm } = require('formidable'); // v2 compatible con require
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const MAX_FILE_MB = parseInt(process.env.MAX_FILE_MB || '5', 10);
 
@@ -43,33 +45,28 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'No se pudo leer la imagen.' });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
+  const base64 = buffer.toString('base64');
+  const filename = file.originalFilename || file.newFilename || 'foto.jpg';
 
+  const to = process.env.DEST_EMAIL;          // A dónde llega
+  const from = process.env.SMTP_FROM;         // Remitente verificado en SendGrid
   const fromEmail = fields.email && String(fields.email);
   const message = fields.message && String(fields.message);
 
   try {
-    await transporter.verify();
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
-      to: process.env.DEST_EMAIL,
+    await sgMail.send({
+      to,
+      from,
       subject: `Nueva foto${fromEmail ? ' de ' + fromEmail : ''}`,
       text: message || 'Sin mensaje.',
-      attachments: [{
-        filename: file.originalFilename || file.newFilename || 'foto.jpg',
-        content: buffer,
-        contentType: mimetype,
-      }],
+      attachments: [
+        { content: base64, filename, type: mimetype, disposition: 'attachment' }
+      ],
       replyTo: fromEmail || undefined,
     });
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('MAIL ERROR:', err?.message || err);
+    console.error('SG ERROR:', err?.response?.body || err?.message || err);
     return res.status(500).json({ error: 'No se pudo enviar el correo.' });
   } finally {
     try { if (file.filepath) fs.unlinkSync(file.filepath); } catch {}
