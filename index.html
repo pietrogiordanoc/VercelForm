@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enviar foto por email</title>
+  <meta name="description" content="Formulario simple para enviar una foto al correo como adjunto.">
+  <style>
+    :root{--bg:#0b1020;--card:#111836;--text:#e6e8ef;--muted:#9aa3b2;--accent:#22d3ee;--ok:#16a34a;--err:#ef4444;--border:#23314f}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:linear-gradient(180deg,#0b1020,#0d1227) fixed;color:var(--text)}
+    .wrap{max-width:780px;margin:6vh auto;padding:24px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:22px}
+    h1{margin:0 0 6px;font-size:clamp(1.4rem,2.4vw,1.8rem)} p{color:var(--muted);margin:.3rem 0 1.2rem}
+    label{display:block;margin:.8rem 0 .3rem} input,textarea,button{width:100%}
+    input,textarea{background:#0b1228;border:1px solid var(--border);color:var(--text);padding:.8rem;border-radius:12px}
+    input[type=file]{padding:.6rem;background:#0b1228}
+    small{color:var(--muted)}
+    button{margin-top:1rem;display:inline-flex;justify-content:center;align-items:center;gap:.6rem;padding:.9rem 1rem;border-radius:12px;border:1px solid var(--border);background:linear-gradient(180deg, rgba(34,211,238,.15), rgba(34,211,238,.05));color:var(--text);font-weight:600;cursor:pointer}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:720px){.row{grid-template-columns:1fr}}
+    .status{margin-top:12px;font-size:.95rem;border-radius:12px;padding:.8rem;border:1px solid var(--border);display:none}
+    .status.ok{display:block;background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.35)}
+    .status.err{display:block;background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.35)}
+    .preview{margin-top:10px;border:1px dashed var(--border);border-radius:12px;padding:8px;display:none}
+    .preview img{max-width:100%;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Enviar foto al correo</h1>
+      <p>Este formulario enviará la imagen como <strong>adjunto</strong> al correo configurado en el servidor.</p>
+
+      <form id="photoForm" enctype="multipart/form-data" method="POST">
+        <label for="email">Tu correo (opcional)</label>
+        <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" />
+
+        <label for="message">Mensaje (opcional)</label>
+        <textarea id="message" name="message" rows="3" placeholder="Comentario breve..."></textarea>
+
+        <div class="row">
+          <div>
+            <label for="photo">Imagen (PNG/JPG, máx. 5 MB)</label>
+            <input id="photo" name="photo" type="file" accept="image/*" required />
+            <small>Por seguridad, el tamaño máximo es 5 MB.</small>
+          </div>
+          <div class="preview" id="previewBox"><img id="previewImg" alt="Vista previa" /></div>
+        </div>
+
+        <button type="submit" id="sendBtn">Enviar foto</button>
+        <div class="status" id="statusBox"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('photoForm');
+    const statusBox = document.getElementById('statusBox');
+    const sendBtn = document.getElementById('sendBtn');
+    const photoInput = document.getElementById('photo');
+    const previewBox = document.getElementById('previewBox');
+    const previewImg = document.getElementById('previewImg');
+
+    // Vista previa rápida
+    photoInput.addEventListener('change', () => {
+      const f = photoInput.files[0];
+      if (f) {
+        if (!f.type.startsWith('image/')) {
+          showStatus('Solo se permiten imágenes.', true);
+          photoInput.value = '';
+          previewBox.style.display = 'none';
+          return;
+        }
+        if (f.size > 5 * 1024 * 1024) {
+          showStatus('La imagen supera 5 MB.', true);
+          photoInput.value = '';
+          previewBox.style.display = 'none';
+          return;
+        }
+        const url = URL.createObjectURL(f);
+        previewImg.src = url;
+        previewBox.style.display = 'block';
+      } else {
+        previewBox.style.display = 'none';
+      }
+    });
+
+    function showStatus(msg, isError=false){
+      statusBox.textContent = msg;
+      statusBox.className = 'status ' + (isError ? 'err' : 'ok');
+      statusBox.style.display = 'block';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = photoInput.files[0];
+      if (!file) return showStatus('Selecciona una imagen.', true);
+      if (!file.type.startsWith('image/')) return showStatus('Solo imágenes.', true);
+      if (file.size > 5 * 1024 * 1024) return showStatus('La imagen supera 5 MB.', true);
+
+      sendBtn.disabled = true;
+      showStatus('Enviando…');
+
+      try {
+        const fd = new FormData(form);
+        const resp = await fetch('/api/send-photo', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Error al enviar');
+        showStatus('¡Enviado! Revisa la bandeja del destinatario.');
+        form.reset();
+        previewBox.style.display = 'none';
+      } catch (err) {
+        showStatus(err.message || 'Error inesperado.', true);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

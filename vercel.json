@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/send-photo.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 10,
+      "memory": 256
+    }
+  }
+}
