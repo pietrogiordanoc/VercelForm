@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { IncomingForm } = require('formidable');
+const { IncomingForm } = require('formidable'); // <-- v2
 const nodemailer = require('nodemailer');
 
 const MAX_FILE_MB = parseInt(process.env.MAX_FILE_MB || '5', 10);
@@ -11,24 +11,24 @@ module.exports = async (req, res) => {
   }
 
   const form = new IncomingForm({
-  multiples: false,
-  keepExtensions: true,
-  maxFileSize: MAX_FILE_MB * 1024 * 1024,
-});
+    multiples: false,
+    keepExtensions: true,
+    maxFileSize: MAX_FILE_MB * 1024 * 1024,
+  });
 
   let fields, files;
   try {
     ({ fields, files } = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
+      form.parse(req, (err, flds, fls) => (err ? reject(err) : resolve({ fields: flds, files: fls })));
     }));
   } catch (err) {
-    const msg = err?.message?.includes('maxFileSize')
+    const msg = String(err?.message || '').includes('maxFileSize')
       ? `La imagen supera ${MAX_FILE_MB} MB.`
       : 'No se pudo procesar el formulario.';
     return res.status(400).json({ error: msg });
   }
 
-  const file = (files.photo && (Array.isArray(files.photo) ? files.photo[0] : files.photo)) || null;
+  const file = files.photo ? (Array.isArray(files.photo) ? files.photo[0] : files.photo) : null;
   if (!file) return res.status(400).json({ error: 'Falta el archivo "photo".' });
 
   const mimetype = file.mimetype || file.type || '';
@@ -47,10 +47,7 @@ module.exports = async (req, res) => {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
 
   const fromEmail = fields.email && String(fields.email);
@@ -58,7 +55,6 @@ module.exports = async (req, res) => {
 
   try {
     await transporter.verify();
-
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: process.env.DEST_EMAIL,
@@ -71,10 +67,9 @@ module.exports = async (req, res) => {
       }],
       replyTo: fromEmail || undefined,
     });
-
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('MAIL ERROR:', err);
+    console.error('MAIL ERROR:', err?.message || err);
     return res.status(500).json({ error: 'No se pudo enviar el correo.' });
   } finally {
     try { if (file.filepath) fs.unlinkSync(file.filepath); } catch {}
