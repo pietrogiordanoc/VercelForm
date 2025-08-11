@@ -1,5 +1,5 @@
 const fs = require('fs');
-const formidable = require('formidable');
+const { IncomingForm } = require('formidable');
 const nodemailer = require('nodemailer');
 
 const MAX_FILE_MB = parseInt(process.env.MAX_FILE_MB || '5', 10);
@@ -10,11 +10,11 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const form = formidable({
-    multiples: false,
-    keepExtensions: true,
-    maxFileSize: MAX_FILE_MB * 1024 * 1024,
-  });
+  const form = new IncomingForm({
+  multiples: false,
+  keepExtensions: true,
+  maxFileSize: MAX_FILE_MB * 1024 * 1024,
+});
 
   let fields, files;
   try {
@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: msg });
   }
 
-  const file = files.photo;
+  const file = (files.photo && (Array.isArray(files.photo) ? files.photo[0] : files.photo)) || null;
   if (!file) return res.status(400).json({ error: 'Falta el archivo "photo".' });
 
   const mimetype = file.mimetype || file.type || '';
