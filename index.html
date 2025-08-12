@@ -30,7 +30,7 @@
       <h1>Enviar mensaje y (opcional) foto</h1>
       <p>Puedes escribir un mensaje y, si quieres, adjuntar una imagen (PNG/JPG, máx. 5 MB).</p>
 
-      <form id="photoForm" enctype="multipart/form-data" method="POST">
+      <form id="photoForm" enctype="multipart/form-data" method="POST" novalidate>
         <label for="email">Tu correo (opcional)</label>
         <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" />
 
@@ -60,7 +60,7 @@
     const previewBox = document.getElementById('previewBox');
     const previewImg = document.getElementById('previewImg');
 
-    // Vista previa rápida (si hay archivo)
+    // Vista previa (opcional)
     photoInput.addEventListener('change', () => {
       const f = photoInput.files[0];
       if (f) {
@@ -93,6 +93,7 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const file = photoInput.files[0];
+
       // Validar solo si hay archivo
       if (file) {
         if (!file.type.startsWith('image/')) return showStatus('Solo imágenes.', true);
