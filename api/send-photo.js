@@ -19,16 +19,16 @@ module.exports = async (req, res) => {
     });
 
     const { fields, files } = await new Promise((resolve, reject) =>
-      form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })))
+      form.parse(req, (err, flds, fls) => (err ? reject(err) : resolve({ fields: flds, files: fls })))
     );
 
     // Campos
     const to = process.env.DEST_EMAIL;
     const from = process.env.SMTP_FROM;
     const email =
-      Array.isArray(fields.email) ? fields.email[0] : (fields.email || '').toString();
+      Array.isArray(fields.email) ? String(fields.email[0] || '') : String(fields.email || '');
     const text =
-      Array.isArray(fields.message) ? fields.message[0] : (fields.message || '').toString();
+      Array.isArray(fields.message) ? String(fields.message[0] || '') : String(fields.message || '');
 
     // Foto OPCIONAL
     let file = files.photo ? (Array.isArray(files.photo) ? files.photo[0] : files.photo) : null;
@@ -59,12 +59,12 @@ module.exports = async (req, res) => {
       attachments.push({
         content: buffer.toString('base64'),
         filename: file.originalFilename || file.newFilename || 'foto.jpg',
-        type: mimetype || 'application/octet-stream',
+        type: file.mimetype || file.type || 'application/octet-stream',
         disposition: 'attachment',
       });
     }
 
-    // ✅ DRY RUN (prueba sin enviar)
+    // ---- DRY RUN (prueba sin enviar) ----
     if (process.env.DRY_RUN === 'true') {
       return res.status(200).json({
         ok: true,
@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Envío real con SendGrid
+    // ---- Envío real con SendGrid ----
     const key = process.env.SENDGRID_API_KEY || '';
     if (!key.startsWith('SG.')) {
       console.error('API key inválida o no configurada');
@@ -94,16 +94,18 @@ module.exports = async (req, res) => {
       ...(email ? { replyTo: email } : {}),
     };
 
-    await sgMail.send(msg);
-    // Envío real con SendGrid
-const [resp] = await sgMail.send(msg);
-// Log para Runtime Logs de Vercel
-console.log('SG SENT', {
-  statusCode: resp?.statusCode,
-  msgId: resp?.headers?.['x-message-id'] || resp?.headers?.['x-message-id'],
-  to,
-  from,
-  hasAttachment: !!(attachments && attachments.length),
-});
-return res.status(200).json({ ok: true });
+    const [resp] = await sgMail.send(msg);
+    console.log('SG SENT', {
+      statusCode: resp?.statusCode,
+      msgId: resp?.headers?.['x-message-id'],
+      to,
+      from,
+      hasAttachment: !!attachments.length,
+    });
 
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('SG ERROR:', err?.response?.body || err?.message || err);
+    return res.status(500).json({ error: 'No se pudo enviar el correo.' });
+  }
+};
