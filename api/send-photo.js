@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { IncomingForm } = require('formidable'); // v2 compatible con require
+const { IncomingForm } = require('formidable');
 const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -30,26 +30,31 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: msg });
   }
 
+  // Foto OPCIONAL
   const file = files.photo ? (Array.isArray(files.photo) ? files.photo[0] : files.photo) : null;
-  if (!file) return res.status(400).json({ error: 'Falta el archivo "photo".' });
 
-  const mimetype = file.mimetype || file.type || '';
-  if (!mimetype.startsWith('image/')) {
-    return res.status(400).json({ error: 'El archivo debe ser una imagen.' });
+  let attachments = [];
+  if (file) {
+    const mimetype = file.mimetype || file.type || '';
+    if (!mimetype.startsWith('image/')) {
+      return res.status(400).json({ error: 'El archivo debe ser una imagen.' });
+    }
+    let buffer;
+    try {
+      buffer = fs.readFileSync(file.filepath || file.path);
+    } catch {
+      return res.status(500).json({ error: 'No se pudo leer la imagen.' });
+    }
+    attachments.push({
+      content: buffer.toString('base64'),
+      filename: file.originalFilename || file.newFilename || 'foto.jpg',
+      type: mimetype,
+      disposition: 'attachment',
+    });
   }
 
-  let buffer;
-  try {
-    buffer = fs.readFileSync(file.filepath || file.path);
-  } catch {
-    return res.status(500).json({ error: 'No se pudo leer la imagen.' });
-  }
-
-  const base64 = buffer.toString('base64');
-  const filename = file.originalFilename || file.newFilename || 'foto.jpg';
-
-  const to = process.env.DEST_EMAIL;          // A dónde llega
-  const from = process.env.SMTP_FROM;         // Remitente verificado en SendGrid
+  const to = process.env.DEST_EMAIL;
+  const from = process.env.SMTP_FROM;
   const fromEmail = fields.email && String(fields.email);
   const message = fields.message && String(fields.message);
 
@@ -57,11 +62,9 @@ module.exports = async (req, res) => {
     await sgMail.send({
       to,
       from,
-      subject: `Nueva foto${fromEmail ? ' de ' + fromEmail : ''}`,
-      text: message || 'Sin mensaje.',
-      attachments: [
-        { content: base64, filename, type: mimetype, disposition: 'attachment' }
-      ],
+      subject: `Nuevo mensaje${fromEmail ? ' de ' + fromEmail : ''}`,
+      text: message || (attachments.length ? 'Sin mensaje.' : 'Sin mensaje ni imagen.'),
+      attachments,
       replyTo: fromEmail || undefined,
     });
     return res.status(200).json({ ok: true });
@@ -69,6 +72,6 @@ module.exports = async (req, res) => {
     console.error('SG ERROR:', err?.response?.body || err?.message || err);
     return res.status(500).json({ error: 'No se pudo enviar el correo.' });
   } finally {
-    try { if (file.filepath) fs.unlinkSync(file.filepath); } catch {}
+    try { if (file?.filepath) fs.unlinkSync(file.filepath); } catch {}
   }
 };

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Enviar foto por email</title>
-  <meta name="description" content="Formulario simple para enviar una foto al correo como adjunto.">
+  <title>Enviar mensaje y (opcional) foto por email</title>
+  <meta name="description" content="Formulario para enviar un mensaje y, si quieres, una imagen adjunta.">
   <style>
     :root{--bg:#0b1020;--card:#111836;--text:#e6e8ef;--muted:#9aa3b2;--accent:#22d3ee;--ok:#16a34a;--err:#ef4444;--border:#23314f}
     *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:linear-gradient(180deg,#0b1020,#0d1227) fixed;color:var(--text)}
@@ -27,8 +27,8 @@
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>Enviar foto al correo</h1>
-      <p>Este formulario enviará la imagen como <strong>adjunto</strong> al correo configurado en el servidor.</p>
+      <h1>Enviar mensaje y (opcional) foto</h1>
+      <p>Puedes escribir un mensaje y, si quieres, adjuntar una imagen (PNG/JPG, máx. 5 MB).</p>
 
       <form id="photoForm" enctype="multipart/form-data" method="POST">
         <label for="email">Tu correo (opcional)</label>
@@ -39,14 +39,14 @@
 
         <div class="row">
           <div>
-            <label for="photo">Imagen (PNG/JPG, máx. 5 MB)</label>
-            <input id="photo" name="photo" type="file" accept="image/*" required />
-            <small>Por seguridad, el tamaño máximo es 5 MB.</small>
+            <label for="photo">Imagen (opcional)</label>
+            <input id="photo" name="photo" type="file" accept="image/*" />
+            <small>Adjunta solo si quieres. Máximo 5 MB.</small>
           </div>
           <div class="preview" id="previewBox"><img id="previewImg" alt="Vista previa" /></div>
         </div>
 
-        <button type="submit" id="sendBtn">Enviar foto</button>
+        <button type="submit" id="sendBtn">Enviar</button>
         <div class="status" id="statusBox"></div>
       </form>
     </div>
@@ -60,7 +60,7 @@
     const previewBox = document.getElementById('previewBox');
     const previewImg = document.getElementById('previewImg');
 
-    // Vista previa rápida
+    // Vista previa rápida (si hay archivo)
     photoInput.addEventListener('change', () => {
       const f = photoInput.files[0];
       if (f) {
@@ -93,9 +93,11 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const file = photoInput.files[0];
-      if (!file) return showStatus('Selecciona una imagen.', true);
-      if (!file.type.startsWith('image/')) return showStatus('Solo imágenes.', true);
-      if (file.size > 5 * 1024 * 1024) return showStatus('La imagen supera 5 MB.', true);
+      // Validar solo si hay archivo
+      if (file) {
+        if (!file.type.startsWith('image/')) return showStatus('Solo imágenes.', true);
+        if (file.size > 5 * 1024 * 1024) return showStatus('La imagen supera 5 MB.', true);
+      }
 
       sendBtn.disabled = true;
       showStatus('Enviando…');
@@ -105,7 +107,7 @@
         const resp = await fetch('/api/send-photo', { method: 'POST', body: fd });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Error al enviar');
-        showStatus('¡Enviado! Revisa la bandeja del destinatario.');
+        showStatus('¡Enviado! Revisa tu correo.');
         form.reset();
         previewBox.style.display = 'none';
       } catch (err) {
