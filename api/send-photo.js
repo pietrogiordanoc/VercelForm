@@ -95,10 +95,15 @@ module.exports = async (req, res) => {
     };
 
     await sgMail.send(msg);
-    return res.status(200).json({ ok: true });
-  } catch (err) {
-    // Log útil para ver en Runtime Logs de Vercel
-    console.error('SG ERROR:', err.response?.body || err.message || err);
-    return res.status(500).json({ error: 'No se pudo enviar el correo.' });
-  }
-};
+    // Envío real con SendGrid
+const [resp] = await sgMail.send(msg);
+// Log para Runtime Logs de Vercel
+console.log('SG SENT', {
+  statusCode: resp?.statusCode,
+  msgId: resp?.headers?.['x-message-id'] || resp?.headers?.['x-message-id'],
+  to,
+  from,
+  hasAttachment: !!(attachments && attachments.length),
+});
+return res.status(200).json({ ok: true });
+
